@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<title>three.js canvas - panorama demo</title>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+		<style>
+			body {
+				background-color: rgb(200,200,200);
+				margin: 0px;
+				overflow: hidden;
+			}
+
+			#info {
+				position: absolute;
+				top: 0px; width: 100%;
+				color: #ffffff;
+				padding: 5px;
+				font-family:Monospace;
+				font-size:13px;
+				font-weight: bold;
+				text-align:center;
+			}
+
+			a {
+				color: #ffffff;
+			}
+		</style>
+	</head>
+	<body>
+
+		<div id="container"></div>
+		<div id="info"><a href="http://threejs.org" target="_blank">three.js</a> - panorama demo. cubemap by <a href="http://www.zfight.com/" target="_blank">Jochum Skoglund</a>.</div>
+
+		<script src="../build/three.min.js"></script>
+
+		<script src="./js/renderers/Projector.js"></script>
+		<script src="./js/renderers/CanvasRenderer.js"></script>
+		<script src="./js/libs/stats.min.js"></script>
+		<script src="./js/loaders/OBJLoader.js"></script>
+
+		<script>
+
+			var camera, scene, renderer;
+			var container;
+			var myModel;
+
+			var texture_placeholder,
+			isUserInteracting = false,
+			onMouseDownMouseX = 0, onMouseDownMouseY = 0,
+			lon = 90, onMouseDownLon = 0,
+			lat = 0, onMouseDownLat = 0,
+			phi = 0, theta = 0,
+			target = new THREE.Vector3();
+
+			init();
+			animate();
+
+			function init() {
+
+				
+
+				container = document.createElement( 'div' );
+				document.body.appendChild( container );
+
+				var info = document.createElement( 'div' );
+				info.style.position = 'absolute';
+				info.style.top = '10px';
+				info.style.width = '100%';
+				info.style.textAlign = 'center';
+				info.innerHTML = 'Drag to spin the cube';
+				container.appendChild( info );
+
+				camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 1, 1100 );
+				camera.position.y = 5;
+				camera.position.z = 10;
+
+				scene = new THREE.Scene();
+
+				// texture
+
+				var manager = new THREE.LoadingManager();
+				manager.onProgress = function ( item, loaded, total ) {
+
+					console.log( item, loaded, total );
+
+				};
+
+				var texture = new THREE.Texture();
+
+				var onProgress = function ( xhr ) {
+					if ( xhr.lengthComputable ) {
+						var percentComplete = xhr.loaded / xhr.total * 100;
+						console.log( Math.round(percentComplete, 2) + '% downloaded' );
+					}
+				};
+
+				var onError = function ( xhr ) {
+				};
+
+				var loader = new THREE.ImageLoader( manager );
+				loader.load( './textures/UV_Grid_Sm.jpg', function ( image ) {
+
+					texture.image = image;
+					texture.needsUpdate = true;
+
+				} );
+
+				// model
+
+				var loader = new THREE.OBJLoader( manager );
+				 
+				loader.load( './obj/male02/male02.obj', function ( object ) {
+
+					object.traverse( function ( child ) {
+
+						if ( child instanceof THREE.Mesh ) {
+
+							child.material.map = texture;
+
+						}
+
+					} );
+
+					object.position.y = 0;
+					myModel = object;
+					scene.add( object );
+
+				}, onProgress, onError );
+
+				renderer = new THREE.CanvasRenderer();
+				renderer.setClearColor( 0xf0f0f0 );
+				renderer.setPixelRatio( window.devicePixelRatio );
+				renderer.setSize( window.innerWidth, window.innerHeight );
+				container.appendChild( renderer.domElement );
+
+				stats = new Stats();
+				stats.domElement.style.position = 'absolute';
+				stats.domElement.style.top = '0px';
+				container.appendChild( stats.domElement );
+
+				document.addEventListener( 'mousedown', onDocumentMouseDown, false );
+				document.addEventListener( 'mousemove', onDocumentMouseMove, false );
+				document.addEventListener( 'mouseup', onDocumentMouseUp, false );
+				document.addEventListener( 'mousewheel', onDocumentMouseWheel, false );
+
+				document.addEventListener( 'touchstart', onDocumentTouchStart, false );
+				document.addEventListener( 'touchmove', onDocumentTouchMove, false );
+
+				//
+
+				window.addEventListener( 'resize', onWindowResize, false );
+
+			}
+
+			function onWindowResize() {
+
+				camera.aspect = window.innerWidth / window.innerHeight;
+				camera.updateProjectionMatrix();
+
+				renderer.setSize( window.innerWidth, window.innerHeight );
+
+			}
+
+			function loadTexture( path ) {
+
+				var texture = new THREE.Texture( texture_placeholder );
+				var material = new THREE.MeshBasicMaterial( { map: texture, overdraw: 0.5 } );
+
+				var image = new Image();
+				image.onload = function () {
+
+					texture.image = this;
+					texture.needsUpdate = true;
+
+				};
+				image.src = path;
+
+				return material;
+
+			}
+
+			function onDocumentMouseDown( event ) {
+
+				event.preventDefault();
+
+				isUserInteracting = true;
+
+				onPointerDownPointerX = event.clientX;
+				onPointerDownPointerY = event.clientY;
+
+				onPointerDownLon = lon;
+				onPointerDownLat = lat;
+
+			}
+
+			function onDocumentMouseMove( event ) {
+
+				if ( isUserInteracting === true ) {
+
+					lon = ( onPointerDownPointerX - event.clientX ) * 0.1 + onPointerDownLon;
+					lat = ( event.clientY - onPointerDownPointerY ) * 0.1 + onPointerDownLat;
+
+				}
+
+			}
+
+			function onDocumentMouseUp( event ) {
+
+				isUserInteracting = false;
+
+			}
+
+			function onDocumentMouseWheel( event ) {
+
+				camera.fov -= event.wheelDeltaY * 0.05;
+				camera.updateProjectionMatrix();
+
+			}
+
+
+			function onDocumentTouchStart( event ) {
+
+				if ( event.touches.length == 1 ) {
+
+					event.preventDefault();
+
+					onPointerDownPointerX = event.touches[ 0 ].pageX;
+					onPointerDownPointerY = event.touches[ 0 ].pageY;
+
+					onPointerDownLon = lon;
+					onPointerDownLat = lat;
+
+				}
+
+			}
+
+			function onDocumentTouchMove( event ) {
+
+				if ( event.touches.length == 1 ) {
+
+					event.preventDefault();
+
+					lon = ( onPointerDownPointerX - event.touches[0].pageX ) * 0.1 + onPointerDownLon;
+					lat = ( event.touches[0].pageY - onPointerDownPointerY ) * 0.1 + onPointerDownLat;
+
+				}
+
+			}
+
+			function animate() {
+
+				requestAnimationFrame( animate );
+				update();
+
+			}
+
+			function update() {
+
+				if ( isUserInteracting === false ) {
+
+					//lon += 0.1;
+
+				}
+
+				lat = Math.max( - 85, Math.min( 85, lat ) );
+				phi = THREE.Math.degToRad( 90 - lat );
+				theta = THREE.Math.degToRad( lon );
+
+				myModel.rotation.y += ( targetRotation - myModel.rotation.y ) * 0.05;
+				myModel.rotation.x += ( targetRotationY - myModel.rotation.x ) * 0.05;
+
+				camera.lookAt( target );
+
+				renderer.render( scene, camera );
+
+			}
+
+		</script>
+	</body>
+</html>
